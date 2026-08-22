@@ -39,9 +39,14 @@ class DownloadForm(forms.Form):
     ]
 
     VIDEO_QUALITIES = [
+        ("2160", "2160p 4K"),
+        ("1440", "1440p 2K"),
         ("1080", "1080p Full HD"),
         ("720", "720p HD"),
         ("480", "480p"),
+        ("360", "360p"),
+        ("240", "240p"),
+        ("144", "144p"),
     ]
 
     AUDIO_QUALITIES = [

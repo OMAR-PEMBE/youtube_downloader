@@ -5,6 +5,21 @@ from pathlib import Path
 
 import yt_dlp
 
+
+def format_duration(seconds):
+    if not seconds:
+        return "Unknown"
+
+    hours = seconds // 3600
+    minutes = (seconds % 3600) // 60
+    seconds = seconds % 60
+
+    if hours:
+        return f"{hours}:{minutes:02d}:{seconds:02d}"
+
+    return f"{minutes}:{seconds:02d}"
+
+
 def get_video_info(url):
     """
     Fetch basic YouTube video information without downloading it.
@@ -24,12 +39,41 @@ def get_video_info(url):
                 download=False
             )
 
+        resolutions = set()
+
+        for fmt in info.get("formats", []):
+            height = fmt.get("height")
+
+            if height:
+                resolutions.add(height)
+
+        # Keep only useful/common resolutions
+        allowed_resolutions = [
+            2160,
+            1440,
+            1080,
+            720,
+            480,
+            360,
+            240,
+            144,
+        ]
+
+        available_resolutions = [
+            resolution
+            for resolution in allowed_resolutions
+            if resolution in resolutions
+        ]
+
         return {
             "title": info.get("title"),
             "thumbnail": info.get("thumbnail"),
-            "duration": info.get("duration"),
+            "duration": format_duration(
+                info.get("duration")
+            ),
             "uploader": info.get("uploader"),
             "webpage_url": info.get("webpage_url"),
+            "resolutions": available_resolutions,
         }
 
     except yt_dlp.utils.DownloadError as error:
@@ -65,7 +109,16 @@ class DeleteOnClose:
 
 class YouTubeDownloader:
 
-    VIDEO_QUALITIES = {"1080", "720", "480"}
+    VIDEO_QUALITIES = {
+        "2160",
+        "1440",
+        "1080",
+        "720",
+        "480",
+        "360",
+        "240",
+        "144",
+    }
     AUDIO_QUALITIES = {"320", "192", "128"}
 
     def __init__(self, url, download_type, quality):

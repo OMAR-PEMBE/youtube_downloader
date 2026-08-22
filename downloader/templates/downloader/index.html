@@ -132,7 +132,7 @@
 
                                 <p class="card-text">
                                     <strong>Duration:</strong>
-                                    {{ video_info.duration }} seconds
+                                    {{ video_info.duration }}
                                 </p>
 
                             </div>
@@ -184,7 +184,38 @@
                             Video Quality
                         </label>
 
-                        {{ form.video_quality }}
+                        <select
+                            class="form-select"
+                            name="video_quality"
+                        >
+
+                            {% if video_info %}
+
+                                {% for resolution in video_info.resolutions %}
+
+                                    <option value="{{ resolution }}">
+                                        {{ resolution }}p
+                                    </option>
+
+                                {% endfor %}
+
+                            {% else %}
+
+                                <option value="1080">
+                                    1080p
+                                </option>
+
+                                <option value="720">
+                                    720p
+                                </option>
+
+                                <option value="480">
+                                    480p
+                                </option>
+
+                            {% endif %}
+
+                        </select>
 
                         {{ form.video_quality.errors }}
 
