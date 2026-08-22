@@ -5,7 +5,38 @@ from pathlib import Path
 
 import yt_dlp
 
+def get_video_info(url):
+    """
+    Fetch basic YouTube video information without downloading it.
+    """
 
+    options = {
+        "quiet": True,
+        "no_warnings": True,
+        "skip_download": True,
+        "noplaylist": True,
+    }
+
+    try:
+        with yt_dlp.YoutubeDL(options) as ydl:
+            info = ydl.extract_info(
+                url,
+                download=False
+            )
+
+        return {
+            "title": info.get("title"),
+            "thumbnail": info.get("thumbnail"),
+            "duration": info.get("duration"),
+            "uploader": info.get("uploader"),
+            "webpage_url": info.get("webpage_url"),
+        }
+
+    except yt_dlp.utils.DownloadError as error:
+        raise DownloadError(
+            f"Could not retrieve video information: {error}"
+        )
+    
 class DownloadError(Exception):
     pass
 

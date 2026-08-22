@@ -37,6 +37,7 @@ class HomeViewTests(SimpleTestCase):
             "url": "https://youtu.be/example",
             "download_type": "video",
             "video_quality": "720",
+            "action": "download",
         })
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Failed")

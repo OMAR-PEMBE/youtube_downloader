@@ -5,10 +5,13 @@ from .forms import DownloadForm
 from .service import (
     DownloadError,
     YouTubeDownloader,
+    get_video_info,
 )
 
 
 def home(request):
+
+    video_info = None
 
     if request.method == "POST":
 
@@ -18,56 +21,75 @@ def home(request):
 
         if form.is_valid():
 
-            url = form.cleaned_data[
-                "url"
-            ]
+            url = form.cleaned_data["url"]
 
-            download_type = (
-                form.cleaned_data[
-                    "download_type"
-                ]
+            action = request.POST.get(
+                "action"
             )
 
-            if download_type == "video":
+            # Preview first
+            if action == "preview":
 
-                quality = (
+                try:
+                    video_info = get_video_info(
+                        url
+                    )
+
+                except DownloadError as error:
+                    form.add_error(
+                        None,
+                        str(error)
+                    )
+
+            # Download after preview
+            elif action == "download":
+
+                download_type = (
                     form.cleaned_data[
-                        "video_quality"
+                        "download_type"
                     ]
                 )
 
-            else:
+                if download_type == "video":
 
-                quality = (
-                    form.cleaned_data[
-                        "audio_quality"
-                    ]
+                    quality = (
+                        form.cleaned_data[
+                            "video_quality"
+                        ]
+                    )
+
+                else:
+
+                    quality = (
+                        form.cleaned_data[
+                            "audio_quality"
+                        ]
+                    )
+
+                downloader = YouTubeDownloader(
+                    url,
+                    download_type,
+                    quality
                 )
 
-            downloader = YouTubeDownloader(
-                url,
-                download_type,
-                quality
-            )
+                try:
 
-            try:
+                    file_object, filename = (
+                        downloader.download()
+                    )
 
-                file_object, filename = (
-                    downloader.download()
-                )
+                    return FileResponse(
+                        file_object,
+                        as_attachment=True,
+                        filename=filename
+                    )
 
-                return FileResponse(
-                    file_object,
-                    as_attachment=True,
-                    filename=filename
-                )
+                except DownloadError as error:
 
-            except DownloadError as error:
-
-                form.add_error(
-                    None,
-                    str(error)
-                )
+                    form.add_error(
+                        None,
+                        str(error)
+                    )
 
     else:
 
@@ -77,6 +99,7 @@ def home(request):
         request,
         "downloader/index.html",
         {
-            "form": form
+            "form": form,
+            "video_info": video_info,
         }
     )

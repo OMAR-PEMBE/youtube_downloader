@@ -101,6 +101,51 @@
                 {% endif %}
 
 
+                {% if video_info %}
+
+                <div class="card mb-4 border-0 bg-light">
+
+                    <div class="row g-0">
+
+                        <div class="col-md-5">
+
+                            <img
+                                src="{{ video_info.thumbnail }}"
+                                class="img-fluid rounded-start"
+                                alt="Video thumbnail"
+                            >
+
+                        </div>
+
+                        <div class="col-md-7">
+
+                            <div class="card-body">
+
+                                <h5 class="card-title">
+                                    {{ video_info.title }}
+                                </h5>
+
+                                <p class="card-text mb-1">
+                                    <strong>Channel:</strong>
+                                    {{ video_info.uploader }}
+                                </p>
+
+                                <p class="card-text">
+                                    <strong>Duration:</strong>
+                                    {{ video_info.duration }} seconds
+                                </p>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+                {% endif %}
+
+
                 <form method="POST">
 
                     {% csrf_token %}
@@ -163,17 +208,31 @@
                     </div>
 
 
-                    <button
-                        type="submit"
-                        class="
-                            btn
-                            btn-danger
-                            w-100
-                            py-3
-                        "
-                    >
-                        Download
-                    </button>
+                    <div class="d-grid gap-2">
+
+                        <button
+                            type="submit"
+                            name="action"
+                            value="preview"
+                            class="btn btn-dark py-3"
+                        >
+                            Preview Video
+                        </button>
+
+                        {% if video_info %}
+
+                            <button
+                                type="submit"
+                                name="action"
+                                value="download"
+                                class="btn btn-danger py-3"
+                            >
+                                Download
+                            </button>
+
+                        {% endif %}
+
+                    </div>
 
                 </form>
 
