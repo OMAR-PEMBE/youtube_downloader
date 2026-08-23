@@ -1,8 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-
     <meta charset="UTF-8">
 
     <meta
@@ -18,34 +16,39 @@
     >
 
     <style>
-
         body {
             min-height: 100vh;
-            background: #f4f6fb;
+            background:
+                linear-gradient(
+                    135deg,
+                    #f8f9fa,
+                    #eef1f6
+                );
         }
 
-        .main-container {
-            max-width: 700px;
+        .app-wrapper {
+            max-width: 820px;
         }
 
-        .download-card {
+        .main-card {
             border: none;
-            border-radius: 20px;
+            border-radius: 24px;
             box-shadow:
-                0 15px 50px
+                0 20px 60px
                 rgba(0, 0, 0, 0.08);
         }
 
-        .youtube-icon {
-            width: 70px;
-            height: 70px;
-            margin: auto;
+        .youtube-logo {
+            width: 72px;
+            height: 72px;
 
             display: flex;
-            justify-content: center;
             align-items: center;
+            justify-content: center;
 
-            border-radius: 20px;
+            margin: auto;
+
+            border-radius: 22px;
 
             background: #ff0000;
             color: white;
@@ -53,34 +56,121 @@
             font-size: 30px;
         }
 
-    </style>
+        .form-control,
+        .form-select {
+            min-height: 52px;
+            border-radius: 12px;
+        }
 
+        .btn-main {
+            min-height: 52px;
+            border-radius: 12px;
+            font-weight: 600;
+        }
+
+        .preview-card {
+            border: none;
+            border-radius: 18px;
+            overflow: hidden;
+            background: #f8f9fa;
+        }
+
+        .preview-image {
+            width: 100%;
+            height: 100%;
+            min-height: 190px;
+            object-fit: cover;
+        }
+
+        .quality-box {
+            padding: 18px;
+            border-radius: 14px;
+            background: #f8f9fa;
+        }
+
+        .job-progress {
+            display: none;
+            padding: 18px;
+            border-radius: 14px;
+            background: #f8f9fa;
+        }
+
+        .progress {
+            height: 14px;
+            border-radius: 999px;
+        }
+
+        #loadingOverlay {
+            display: none;
+
+            position: fixed;
+            inset: 0;
+
+            background:
+                rgba(255, 255, 255, 0.92);
+
+            z-index: 9999;
+
+            align-items: center;
+            justify-content: center;
+        }
+
+        .loading-content {
+            text-align: center;
+        }
+
+        .loading-spinner {
+            width: 3rem;
+            height: 3rem;
+        }
+    </style>
 </head>
 
-
 <body>
+
+<div
+    id="loadingOverlay"
+>
+    <div class="loading-content">
+
+        <div
+            class="spinner-border text-danger loading-spinner"
+            role="status"
+        >
+        </div>
+
+        <h5 class="mt-3 fw-bold">
+            Preparing your download...
+        </h5>
+
+        <p class="text-secondary mb-0">
+            Please wait while the file is processed.
+        </p>
+
+    </div>
+</div>
 
 
 <div class="container py-5">
 
-    <div class="main-container mx-auto">
+    <div class="app-wrapper mx-auto">
 
-        <div class="card download-card">
+        <div class="card main-card">
 
-            <div class="card-body p-5">
+            <div class="card-body p-4 p-md-5">
 
-                <div class="text-center mb-4">
+                <div class="text-center mb-5">
 
-                    <div class="youtube-icon mb-3">
-                        ▶
+                    <div class="youtube-logo mb-3">
+                        â–¶
                     </div>
 
-                    <h2 class="fw-bold">
+                    <h2 class="fw-bold mb-2">
                         YouTube Downloader
                     </h2>
 
-                    <p class="text-muted">
-                        Download video or audio
+                    <p class="text-secondary mb-0">
+                        Download video or audio in your preferred quality.
                     </p>
 
                 </div>
@@ -88,52 +178,80 @@
 
                 {% if form.non_field_errors %}
 
-                <div class="alert alert-danger">
+                    <div class="alert alert-danger">
 
-                    {% for error in form.non_field_errors %}
+                        {% for error in form.non_field_errors %}
 
-                        {{ error }}
+                            <div>
+                                {{ error }}
+                            </div>
 
-                    {% endfor %}
+                        {% endfor %}
 
-                </div>
+                    </div>
+
+                {% endif %}
+
+
+                {% if form.url.errors %}
+
+                    <div class="alert alert-danger">
+
+                        {% for error in form.url.errors %}
+
+                            <div>
+                                {{ error }}
+                            </div>
+
+                        {% endfor %}
+
+                    </div>
 
                 {% endif %}
 
 
                 {% if video_info %}
 
-                <div class="card mb-4 border-0 bg-light">
+                    <div class="card preview-card mb-4">
 
-                    <div class="row g-0">
+                        <div class="row g-0">
 
-                        <div class="col-md-5">
+                            <div class="col-md-5">
 
-                            <img
-                                src="{{ video_info.thumbnail }}"
-                                class="img-fluid rounded-start"
-                                alt="Video thumbnail"
-                            >
+                                <img
+                                    src="{{ video_info.thumbnail }}"
+                                    alt="Video thumbnail"
+                                    class="preview-image"
+                                >
 
-                        </div>
+                            </div>
 
-                        <div class="col-md-7">
 
-                            <div class="card-body">
+                            <div class="col-md-7">
 
-                                <h5 class="card-title">
-                                    {{ video_info.title }}
-                                </h5>
+                                <div class="card-body p-4">
 
-                                <p class="card-text mb-1">
-                                    <strong>Channel:</strong>
-                                    {{ video_info.uploader }}
-                                </p>
+                                    <h5 class="fw-bold">
+                                        {{ video_info.title }}
+                                    </h5>
 
-                                <p class="card-text">
-                                    <strong>Duration:</strong>
-                                    {{ video_info.duration }}
-                                </p>
+                                    <p class="mb-2 text-secondary">
+
+                                        <strong>Channel:</strong>
+
+                                        {{ video_info.uploader }}
+
+                                    </p>
+
+                                    <p class="mb-0 text-secondary">
+
+                                        <strong>Duration:</strong>
+
+                                        {{ video_info.duration }}
+
+                                    </p>
+
+                                </div>
 
                             </div>
 
@@ -141,46 +259,69 @@
 
                     </div>
 
-                </div>
-
                 {% endif %}
 
 
-                <form method="POST">
+                <form
+                    method="POST"
+                    id="downloadForm"
+                >
 
                     {% csrf_token %}
 
 
                     <div class="mb-4">
 
-                        <label class="form-label">
+                        <label
+                            for="{{ form.url.id_for_label }}"
+                            class="form-label fw-semibold"
+                        >
                             YouTube URL
                         </label>
 
                         {{ form.url }}
-
-                        {{ form.url.errors }}
 
                     </div>
 
 
                     <div class="mb-4">
 
-                        <label class="form-label">
+                        <label class="form-label fw-semibold">
                             Download Type
                         </label>
 
-                        {{ form.download_type }}
+                        <div class="d-flex gap-4">
+
+                            {% for radio in form.download_type %}
+
+                                <div class="form-check">
+
+                                    {{ radio.tag }}
+
+                                    <label
+                                        class="form-check-label"
+                                        for="{{ radio.id_for_label }}"
+                                    >
+                                        {{ radio.choice_label }}
+                                    </label>
+
+                                </div>
+
+                            {% endfor %}
+
+                        </div>
 
                     </div>
 
 
                     <div
-                        class="mb-4"
                         id="videoOptions"
+                        class="quality-box mb-4"
                     >
 
-                        <label class="form-label">
+                        <label
+                            class="form-label fw-semibold"
+                        >
                             Video Quality
                         </label>
 
@@ -193,8 +334,16 @@
 
                                 {% for resolution in video_info.resolutions %}
 
-                                    <option value="{{ resolution }}">
+                                    <option
+                                        value="{{ resolution }}"
+                                    >
                                         {{ resolution }}p
+                                    </option>
+
+                                {% empty %}
+
+                                    <option value="720">
+                                        720p HD
                                     </option>
 
                                 {% endfor %}
@@ -202,39 +351,105 @@
                             {% else %}
 
                                 <option value="1080">
-                                    1080p
+                                    1080p Full HD
                                 </option>
 
                                 <option value="720">
-                                    720p
+                                    720p HD
                                 </option>
 
                                 <option value="480">
                                     480p
                                 </option>
 
+                                <option value="360">
+                                    360p
+                                </option>
+
                             {% endif %}
 
                         </select>
-
-                        {{ form.video_quality.errors }}
 
                     </div>
 
 
                     <div
-                        class="mb-4"
                         id="audioOptions"
-                        style="display:none"
+                        class="quality-box mb-4"
+                        style="display: none;"
                     >
 
-                        <label class="form-label">
+                        <label
+                            class="form-label fw-semibold"
+                        >
                             Audio Quality
                         </label>
 
-                        {{ form.audio_quality }}
+                        <select
+                            class="form-select"
+                            name="audio_quality"
+                        >
 
-                        {{ form.audio_quality.errors }}
+                            <option value="320">
+                                320 kbps
+                            </option>
+
+                            <option value="192">
+                                192 kbps
+                            </option>
+
+                            <option value="128">
+                                128 kbps
+                            </option>
+
+                        </select>
+
+                    </div>
+
+
+                    <div
+                        id="jobProgress"
+                        class="job-progress mb-4"
+                        aria-live="polite"
+                    >
+
+                        <div class="d-flex justify-content-between mb-2">
+                            <strong id="jobStage">Waiting to start</strong>
+                            <span id="jobPercent">0%</span>
+                        </div>
+
+                        <div
+                            class="progress"
+                            role="progressbar"
+                            aria-label="Download progress"
+                            aria-valuemin="0"
+                            aria-valuemax="100"
+                        >
+                            <div
+                                id="jobProgressBar"
+                                class="progress-bar progress-bar-striped progress-bar-animated bg-danger"
+                                style="width: 0%"
+                            ></div>
+                        </div>
+
+                        <small
+                            id="jobDetails"
+                            class="d-block text-secondary mt-2"
+                        ></small>
+
+                        <div
+                            id="jobError"
+                            class="alert alert-danger mt-3 mb-0"
+                            style="display: none;"
+                        ></div>
+
+                        <a
+                            id="readyDownloadButton"
+                            class="btn btn-success btn-main w-100 mt-3"
+                            style="display: none;"
+                        >
+                            Download File
+                        </a>
 
                     </div>
 
@@ -245,18 +460,19 @@
                             type="submit"
                             name="action"
                             value="preview"
-                            class="btn btn-dark py-3"
+                            class="btn btn-dark btn-main"
+                            id="previewButton"
                         >
                             Preview Video
                         </button>
 
+
                         {% if video_info %}
 
                             <button
-                                type="submit"
-                                name="action"
-                                value="download"
-                                class="btn btn-danger py-3"
+                                type="button"
+                                class="btn btn-danger btn-main"
+                                id="downloadButton"
                             >
                                 Download
                             </button>
@@ -266,6 +482,15 @@
                     </div>
 
                 </form>
+
+
+                <div class="text-center mt-4">
+
+                    <small class="text-secondary">
+                        Only download content you own or have permission to download.
+                    </small>
+
+                </div>
 
             </div>
 
@@ -292,6 +517,25 @@
         document.getElementById(
             "audioOptions"
         );
+
+    const form =
+        document.getElementById(
+            "downloadForm"
+        );
+
+    const downloadButton =
+        document.getElementById(
+            "downloadButton"
+        );
+
+    const jobProgress = document.getElementById("jobProgress");
+    const jobStage = document.getElementById("jobStage");
+    const jobPercent = document.getElementById("jobPercent");
+    const jobProgressBar = document.getElementById("jobProgressBar");
+    const jobDetails = document.getElementById("jobDetails");
+    const jobError = document.getElementById("jobError");
+    const readyDownloadButton = document.getElementById("readyDownloadButton");
+    const startDownloadUrl = "{% url 'download-start' %}";
 
 
     function updateOptions() {
@@ -327,7 +571,7 @@
 
 
     typeInputs.forEach(
-        function (input) {
+        function(input) {
 
             input.addEventListener(
                 "change",
@@ -340,9 +584,116 @@
 
     updateOptions();
 
+
+    function formatBytes(bytes) {
+        if (!bytes) {
+            return "";
+        }
+
+        const units = ["B", "KB", "MB", "GB"];
+        const index = Math.min(
+            Math.floor(Math.log(bytes) / Math.log(1024)),
+            units.length - 1
+        );
+        return `${(bytes / (1024 ** index)).toFixed(1)} ${units[index]}`;
+    }
+
+
+    function showFailure(message) {
+        jobStage.textContent = "Download failed";
+        jobError.textContent = message;
+        jobError.style.display = "block";
+        jobProgressBar.classList.remove("progress-bar-animated");
+        downloadButton.disabled = false;
+    }
+
+
+    async function pollProgress(progressUrl) {
+        try {
+            const response = await fetch(progressUrl, {
+                headers: {"Accept": "application/json"}
+            });
+            const job = await response.json();
+
+            if (!response.ok) {
+                throw new Error(job.error || "Could not read download progress.");
+            }
+
+            const percent = Math.max(0, Math.min(100, job.progress || 0));
+            jobStage.textContent = job.stage;
+            jobPercent.textContent = `${percent}%`;
+            jobProgressBar.style.width = `${percent}%`;
+
+            const details = [];
+            if (job.downloaded_bytes) {
+                details.push(formatBytes(job.downloaded_bytes));
+            }
+            if (job.total_bytes) {
+                details.push(`of ${formatBytes(job.total_bytes)}`);
+            }
+            if (job.speed) {
+                details.push(`at ${formatBytes(job.speed)}/s`);
+            }
+            if (job.eta !== null && job.eta !== undefined) {
+                details.push(`ETA ${job.eta}s`);
+            }
+            jobDetails.textContent = details.join(" ");
+
+            if (job.status === "ready" && job.download_url) {
+                jobProgressBar.classList.remove("progress-bar-animated");
+                readyDownloadButton.href = job.download_url;
+                readyDownloadButton.style.display = "block";
+                downloadButton.disabled = false;
+                return;
+            }
+
+            if (job.status === "failed" || job.status === "expired") {
+                showFailure(job.error || "The download could not be completed.");
+                return;
+            }
+
+            window.setTimeout(() => pollProgress(progressUrl), 1000);
+        } catch (error) {
+            showFailure(error.message);
+        }
+    }
+
+
+    async function startDownload() {
+        jobProgress.style.display = "block";
+        jobError.style.display = "none";
+        readyDownloadButton.style.display = "none";
+        jobStage.textContent = "Creating download job";
+        jobPercent.textContent = "0%";
+        jobProgressBar.style.width = "0%";
+        jobProgressBar.classList.add("progress-bar-animated");
+        downloadButton.disabled = true;
+
+        try {
+            const response = await fetch(startDownloadUrl, {
+                method: "POST",
+                body: new FormData(form),
+                headers: {"Accept": "application/json"}
+            });
+            const result = await response.json();
+
+            if (!response.ok) {
+                throw new Error(result.error || "Could not start the download.");
+            }
+
+            pollProgress(result.progress_url);
+        } catch (error) {
+            showFailure(error.message);
+        }
+    }
+
+
+    if (downloadButton) {
+        downloadButton.addEventListener("click", startDownload);
+    }
+
 </script>
 
 
 </body>
-
 </html>

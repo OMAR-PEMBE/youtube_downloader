@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.1/ref/settings/
 """
 
+import os
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -117,6 +118,23 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.1/howto/static-files/
 
 STATIC_URL = 'static/'
+
+DOWNLOAD_ROOT = BASE_DIR / "download_jobs"
+DOWNLOAD_JOB_TTL_SECONDS = int(os.environ.get("DOWNLOAD_JOB_TTL_SECONDS", "3600"))
+DOWNLOAD_MAX_ACTIVE_JOBS = int(os.environ.get("DOWNLOAD_MAX_ACTIVE_JOBS", "2"))
+
+CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", "redis://127.0.0.1:6379/0")
+CELERY_RESULT_BACKEND = os.environ.get("CELERY_RESULT_BACKEND", "redis://127.0.0.1:6379/1")
+CELERY_TASK_TRACK_STARTED = True
+CELERY_TASK_TIME_LIMIT = 60 * 60
+CELERY_TASK_SOFT_TIME_LIMIT = 55 * 60
+CELERY_RESULT_EXPIRES = DOWNLOAD_JOB_TTL_SECONDS
+CELERY_BEAT_SCHEDULE = {
+    "cleanup-expired-downloads": {
+        "task": "downloader.tasks.cleanup_expired_downloads",
+        "schedule": 15 * 60,
+    },
+}
 
 
 # Email

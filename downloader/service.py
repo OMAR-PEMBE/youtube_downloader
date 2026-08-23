@@ -3,6 +3,7 @@ import shutil
 import tempfile
 from pathlib import Path
 
+import imageio_ffmpeg
 import yt_dlp
 
 
@@ -121,7 +122,14 @@ class YouTubeDownloader:
     }
     AUDIO_QUALITIES = {"320", "192", "128"}
 
-    def __init__(self, url, download_type, quality):
+    def __init__(
+        self,
+        url,
+        download_type,
+        quality,
+        output_directory=None,
+        progress_callback=None,
+    ):
 
         allowed_qualities = (
             self.VIDEO_QUALITIES
@@ -141,11 +149,21 @@ class YouTubeDownloader:
         self.download_type = download_type
         self.quality = quality
 
-        self.temp_directory = tempfile.mkdtemp(
-            prefix="youtube_download_"
+        self.progress_callback = progress_callback
+        self.owns_directory = output_directory is None
+        self.temp_directory = (
+            tempfile.mkdtemp(prefix="youtube_download_")
+            if self.owns_directory
+            else str(Path(output_directory).resolve())
         )
+        Path(self.temp_directory).mkdir(parents=True, exist_ok=True)
 
     def download(self):
+
+        filepath = self.download_to_path()
+        return self._prepare_file(filepath)
+
+    def download_to_path(self):
 
         try:
 
@@ -171,11 +189,17 @@ class YouTubeDownloader:
     def _base_options(self):
 
         return {
+            "ffmpeg_location": imageio_ffmpeg.get_ffmpeg_exe(),
             "noplaylist": True,
             "quiet": True,
             "no_warnings": True,
+            "noprogress": True,
             "restrictfilenames": True,
             "retries": 3,
+            "socket_timeout": 30,
+
+            "progress_hooks": [self._progress_hook],
+            "postprocessor_hooks": [self._postprocessor_hook],
 
             "outtmpl": os.path.join(
                 self.temp_directory,
@@ -205,7 +229,7 @@ class YouTubeDownloader:
 
         filepath = self._find_final_file()
 
-        return self._prepare_file(filepath)
+        return filepath
 
     def _download_audio(self):
 
@@ -232,7 +256,17 @@ class YouTubeDownloader:
             ".mp3"
         )
 
-        return self._prepare_file(filepath)
+        return filepath
+
+    def _progress_hook(self, progress):
+
+        if self.progress_callback:
+            self.progress_callback("download", progress)
+
+    def _postprocessor_hook(self, progress):
+
+        if self.progress_callback:
+            self.progress_callback("processing", progress)
 
     def _execute_download(self, options):
 
