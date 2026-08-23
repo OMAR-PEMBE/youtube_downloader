@@ -9,7 +9,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from .forms import DownloadForm
-from .models import DownloadJob
+from .models import Advertisement, DownloadJob
 from .service import DownloadError, YouTubeDownloader
 from .tasks import cleanup_expired_downloads, download_media
 
@@ -32,10 +32,83 @@ class DownloadFormTests(SimpleTestCase):
 
 
 class HomeViewTests(TestCase):
+    def _advertisement(self, **overrides):
+        values = {
+            "name": "Test campaign",
+            "placement": Advertisement.Placement.ABOVE_FORM,
+            "headline": "Recommended service",
+            "description": "A useful partner offer.",
+            "destination_url": "https://example.com/offer",
+            "is_active": True,
+        }
+        values.update(overrides)
+        return Advertisement.objects.create(**values)
+
+    def test_liveness_endpoint(self):
+        response = self.client.get(reverse("health-live"))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"status": "ok"})
+
+    def test_readiness_endpoint(self):
+        response = self.client.get(reverse("health-ready"))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"status": "ok"})
+
+    @patch("downloader.views.cache.get", side_effect=RuntimeError("Redis unavailable"))
+    def test_readiness_reports_dependency_failure(self, cache_get):
+        response = self.client.get(reverse("health-ready"))
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.json(), {"status": "unavailable"})
+
     def test_home_page_loads(self):
         response = self.client.get(reverse("home"))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "YouTube Downloader")
+
+    def test_active_advertisement_is_rendered_and_counts_impression(self):
+        advertisement = self._advertisement()
+
+        response = self.client.get(reverse("home"))
+
+        self.assertContains(response, "Recommended service")
+        self.assertContains(response, "Sponsored / Affiliate link")
+        advertisement.refresh_from_db()
+        self.assertEqual(advertisement.impressions, 1)
+
+    def test_inactive_and_expired_advertisements_are_hidden(self):
+        self._advertisement(name="Inactive", headline="Hidden inactive", is_active=False)
+        self._advertisement(
+            name="Expired",
+            headline="Hidden expired",
+            ends_at=timezone.now() - timedelta(seconds=1),
+        )
+
+        response = self.client.get(reverse("home"))
+
+        self.assertNotContains(response, "Hidden inactive")
+        self.assertNotContains(response, "Hidden expired")
+
+    def test_advertisement_click_redirects_and_counts_aggregate_click(self):
+        advertisement = self._advertisement()
+
+        response = self.client.get(reverse("advertisement-click", args=[advertisement.id]))
+
+        self.assertRedirects(
+            response,
+            "https://example.com/offer",
+            fetch_redirect_response=False,
+        )
+        advertisement.refresh_from_db()
+        self.assertEqual(advertisement.clicks, 1)
+
+    def test_advertisement_content_is_escaped(self):
+        self._advertisement(headline='<script>alert("x")</script>')
+
+        response = self.client.get(reverse("home"))
+
+        self.assertNotContains(response, '<script>alert("x")</script>', html=False)
+        self.assertContains(response, "&lt;script&gt;")
+
 
     @patch("downloader.views.get_video_info")
     def test_preview_error_is_shown_to_user(self, get_video_info):
@@ -289,6 +362,24 @@ class BackgroundTaskTests(TransactionTestCase):
             job.file_path = str(filepath)
             job.filename = filepath.name
             job.save(update_fields=["file_path", "filename"])
+
+            with override_settings(DOWNLOAD_ROOT=root):
+                deleted = cleanup_expired_downloads.run()
+
+            self.assertEqual(deleted, 1)
+            self.assertFalse(DownloadJob.objects.filter(pk=job.id).exists())
+            self.assertFalse(directory.exists())
+
+    @override_settings(DOWNLOAD_STALE_JOB_SECONDS=60)
+    def test_cleanup_removes_stale_active_job_after_worker_restart(self):
+        with tempfile.TemporaryDirectory() as root:
+            job = self._job(status=DownloadJob.Status.DOWNLOADING)
+            DownloadJob.objects.filter(pk=job.id).update(
+                updated_at=timezone.now() - timedelta(minutes=2)
+            )
+            directory = Path(root) / str(job.id)
+            directory.mkdir()
+            (directory / "partial.webm").write_bytes(b"partial")
 
             with override_settings(DOWNLOAD_ROOT=root):
                 deleted = cleanup_expired_downloads.run()

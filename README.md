@@ -39,6 +39,11 @@ docker compose up --build
 Open <http://localhost:8000>. The Compose stack starts Django, PostgreSQL,
 Redis, a Celery worker, and Celery Beat for expired-file cleanup.
 
+The web container uses Gunicorn rather than Django's development server. Docker
+checks `/health/ready/` to confirm that Django, PostgreSQL, and Redis are ready
+before treating the web service as healthy. `/health/live/` is a lightweight
+process liveness endpoint for hosting platforms.
+
 Stop the stack with:
 
 ```powershell
@@ -61,6 +66,26 @@ Anonymous sessions may start 10 downloads per hour by default. Configure
 this temporary Redis-backed limit. It is abuse protection, not permanent user
 tracking, and disappears when the Redis key expires.
 
+## Administration and advertising
+
+Create the administrator account once:
+
+```powershell
+docker compose exec web python manage.py createsuperuser
+```
+
+Sign in at <http://localhost:8000/admin/>. The admin provides operational
+download-job monitoring and structured advertisement management. Campaigns can
+be enabled, scheduled, prioritized, and assigned to the top of the page, above
+the form, or below the form. Advertisement content is escaped and cannot inject
+raw HTML or JavaScript.
+
+Impressions and clicks are aggregate counters only; they are not linked to IP
+addresses, sessions, submitted URLs, or download history. Affiliate links are
+rendered with a visible disclosure. Use `DJANGO_ADMIN_PATH` to choose a
+different admin URL before deployment; a changed URL is an extra precaution,
+not a replacement for a strong password and HTTPS.
+
 Downloads are limited to three hours and 2 GB by default. Configure
 `DOWNLOAD_MAX_DURATION_SECONDS` and `DOWNLOAD_MAX_FILE_SIZE_BYTES` in `.env` to
 change those limits. The size check is enforced during transfer and on the
@@ -77,3 +102,35 @@ intend to reset the application.
 ```powershell
 .\venv\Scripts\python.exe manage.py test
 ```
+
+## Free Render prototype deployment
+
+The repository includes `render.yaml` for a no-cost demonstration deployment.
+It provisions one free web service, one free Render Postgres database, and one
+free Render Key Value instance. Because free background workers are not
+available, the web service starts Gunicorn, a single Celery worker, and Celery
+Beat together. This arrangement is for evaluation only, not production.
+
+Before pushing, rotate the local `DJANGO_SECRET_KEY` and `POSTGRES_PASSWORD` in
+`.env`. Never commit `.env`; it is already ignored by Git.
+
+Deployment steps:
+
+1. Commit the project and push the `main` branch to GitHub.
+2. Sign in to Render and choose **New > Blueprint**.
+3. Connect the GitHub repository and select its `render.yaml` Blueprint.
+4. When prompted for `DJANGO_ADMIN_PATH`, enter a private path ending in `/`,
+   such as `control-your-random-words/`.
+5. Apply the Blueprint and wait for the health check to pass.
+6. Open the Render Shell for the web service and run
+   `python manage.py createsuperuser`.
+
+Render automatically supplies the external hostname, generated Django secret,
+PostgreSQL URL, and private Key Value URL. Do not copy local database credentials
+into Render.
+
+Free-tier limitations are significant: the web service sleeps when idle, local
+download files are ephemeral, Redis data can disappear on restart, and the free
+PostgreSQL database expires after 30 days without backups. Upgrade to separate
+web/worker services, persistent storage, and paid PostgreSQL before treating the
+site as a production service.

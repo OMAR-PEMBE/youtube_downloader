@@ -6,5 +6,6 @@ __pycache__/
 *.py[cod]
 db.sqlite3
 download_jobs/
+staticfiles/
 celerybeat-schedule*
 *.webm

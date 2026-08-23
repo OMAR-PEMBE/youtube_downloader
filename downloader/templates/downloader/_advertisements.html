@@ -1,0 +1,35 @@
+{% for advertisement in advertisements %}
+    <aside class="advertisement card mb-4" aria-label="Advertisement">
+        <div class="row g-0 align-items-center">
+            {% if advertisement.image_url %}
+                <div class="col-sm-4">
+                    <img
+                        src="{{ advertisement.image_url }}"
+                        class="advertisement-image"
+                        alt=""
+                        loading="lazy"
+                        referrerpolicy="no-referrer"
+                    >
+                </div>
+            {% endif %}
+
+            <div class="{% if advertisement.image_url %}col-sm-8{% else %}col-12{% endif %}">
+                <div class="card-body">
+                    <small class="advertisement-disclosure">{{ advertisement.disclosure }}</small>
+                    <h5 class="card-title mt-1">{{ advertisement.headline }}</h5>
+                    {% if advertisement.description %}
+                        <p class="card-text text-secondary">{{ advertisement.description }}</p>
+                    {% endif %}
+                    <a
+                        href="{% url 'advertisement-click' advertisement.id %}"
+                        class="btn btn-outline-dark"
+                        target="_blank"
+                        rel="sponsored noopener noreferrer"
+                    >
+                        Learn more
+                    </a>
+                </div>
+            </div>
+        </div>
+    </aside>
+{% endfor %}

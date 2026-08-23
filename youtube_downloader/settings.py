@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/6.1/ref/settings/
 
 import os
 from pathlib import Path
+from urllib.parse import parse_qs, unquote, urlparse
 
 from django.core.exceptions import ImproperlyConfigured
 
@@ -39,6 +40,10 @@ if not SECRET_KEY:
 
 ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1")
 CSRF_TRUSTED_ORIGINS = env_list("DJANGO_CSRF_TRUSTED_ORIGINS")
+RENDER_EXTERNAL_HOSTNAME = os.environ.get("RENDER_EXTERNAL_HOSTNAME")
+if RENDER_EXTERNAL_HOSTNAME:
+    ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
+    CSRF_TRUSTED_ORIGINS.append(f"https://{RENDER_EXTERNAL_HOSTNAME}")
 
 
 # Application definition
@@ -56,6 +61,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -87,7 +93,25 @@ WSGI_APPLICATION = 'youtube_downloader.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/6.1/ref/settings/#databases
 
-if os.environ.get("POSTGRES_HOST"):
+if os.environ.get("DATABASE_URL"):
+    database_url = urlparse(os.environ["DATABASE_URL"])
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": database_url.path.lstrip("/"),
+            "USER": unquote(database_url.username or ""),
+            "PASSWORD": unquote(database_url.password or ""),
+            "HOST": database_url.hostname or "",
+            "PORT": database_url.port or 5432,
+            "OPTIONS": {
+                key: values[-1]
+                for key, values in parse_qs(database_url.query).items()
+            },
+            "CONN_MAX_AGE": 60,
+            "CONN_HEALTH_CHECKS": True,
+        }
+    }
+elif os.environ.get("POSTGRES_HOST"):
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.postgresql",
@@ -144,14 +168,28 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.1/howto/static-files/
 
 STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / "staticfiles"
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {
+        "BACKEND": (
+            "django.contrib.staticfiles.storage.StaticFilesStorage"
+            if DEBUG
+            else "whitenoise.storage.CompressedManifestStaticFilesStorage"
+        ),
+    },
+}
 
-DOWNLOAD_ROOT = BASE_DIR / "download_jobs"
+ADMIN_PATH = os.environ.get("DJANGO_ADMIN_PATH", "admin/").strip("/") + "/"
+
+DOWNLOAD_ROOT = Path(os.environ.get("DOWNLOAD_ROOT", BASE_DIR / "download_jobs"))
 DOWNLOAD_JOB_TTL_SECONDS = int(os.environ.get("DOWNLOAD_JOB_TTL_SECONDS", "3600"))
 DOWNLOAD_MAX_ACTIVE_JOBS = int(os.environ.get("DOWNLOAD_MAX_ACTIVE_JOBS", "2"))
 DOWNLOAD_MAX_DURATION_SECONDS = int(os.environ.get("DOWNLOAD_MAX_DURATION_SECONDS", "10800"))
 DOWNLOAD_MAX_FILE_SIZE_BYTES = int(os.environ.get("DOWNLOAD_MAX_FILE_SIZE_BYTES", str(2 * 1024**3)))
 DOWNLOAD_RATE_LIMIT_COUNT = int(os.environ.get("DOWNLOAD_RATE_LIMIT_COUNT", "10"))
 DOWNLOAD_RATE_LIMIT_WINDOW_SECONDS = int(os.environ.get("DOWNLOAD_RATE_LIMIT_WINDOW_SECONDS", "3600"))
+DOWNLOAD_STALE_JOB_SECONDS = int(os.environ.get("DOWNLOAD_STALE_JOB_SECONDS", "900"))
 
 CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", "redis://127.0.0.1:6379/0")
 CELERY_RESULT_BACKEND = os.environ.get("CELERY_RESULT_BACKEND", "redis://127.0.0.1:6379/1")
@@ -192,6 +230,8 @@ if not DEBUG:
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = env_bool("DJANGO_SECURE_HSTS_PRELOAD", False)
     SECURE_CONTENT_TYPE_NOSNIFF = True
+    if RENDER_EXTERNAL_HOSTNAME:
+        SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 
 # Email

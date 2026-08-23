@@ -7,4 +7,5 @@ __pycache__
 *.pyc
 db.sqlite3
 download_jobs
+staticfiles
 *.webm

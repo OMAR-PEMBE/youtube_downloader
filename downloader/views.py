@@ -1,20 +1,46 @@
 import shutil
+import uuid
 from datetime import timedelta
 from pathlib import Path
 
 from celery import current_app
 from django.conf import settings
 from django.core.cache import cache
+from django.db import connection
+from django.db.models import F
 from django.http import FileResponse, JsonResponse
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
 
 from .forms import DownloadForm
-from .models import DownloadJob
+from .models import Advertisement, DownloadJob
 from .service import DownloadError, get_video_info
 from .tasks import download_media
+
+
+@require_GET
+def health_live(request):
+    return JsonResponse({"status": "ok"})
+
+
+@require_GET
+def health_ready(request):
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT 1")
+            cursor.fetchone()
+
+        cache_key = f"health-check:{uuid.uuid4()}"
+        cache.set(cache_key, "ok", timeout=10)
+        if cache.get(cache_key) != "ok":
+            raise RuntimeError("Cache health check failed")
+        cache.delete(cache_key)
+    except Exception:
+        return JsonResponse({"status": "unavailable"}, status=503)
+
+    return JsonResponse({"status": "ok"})
 
 
 class DeleteJobOnClose:
@@ -85,11 +111,38 @@ def home(request):
             except DownloadError as error:
                 form.add_error(None, str(error))
 
+    advertisements = list(Advertisement.objects.active())
+    if advertisements:
+        Advertisement.objects.filter(pk__in=[ad.pk for ad in advertisements]).update(
+            impressions=F("impressions") + 1
+        )
+
+    ads_by_placement = {
+        placement: [ad for ad in advertisements if ad.placement == placement]
+        for placement in Advertisement.Placement.values
+    }
+
     return render(
         request,
         "downloader/index.html",
-        {"form": form, "video_info": video_info},
+        {
+            "form": form,
+            "video_info": video_info,
+            "page_top_ads": ads_by_placement[Advertisement.Placement.PAGE_TOP],
+            "above_form_ads": ads_by_placement[Advertisement.Placement.ABOVE_FORM],
+            "below_form_ads": ads_by_placement[Advertisement.Placement.BELOW_FORM],
+        },
     )
+
+
+@require_GET
+def advertisement_click(request, advertisement_id):
+    advertisement = get_object_or_404(
+        Advertisement.objects.active(),
+        pk=advertisement_id,
+    )
+    Advertisement.objects.filter(pk=advertisement.pk).update(clicks=F("clicks") + 1)
+    return redirect(advertisement.destination_url)
 
 
 @require_POST

@@ -156,6 +156,23 @@ def download_media(self, job_id):
 
 @shared_task(name="downloader.tasks.cleanup_expired_downloads")
 def cleanup_expired_downloads():
+    stale_before = timezone.now() - timedelta(seconds=settings.DOWNLOAD_STALE_JOB_SECONDS)
+    stale_jobs = DownloadJob.objects.filter(
+        status__in=[
+            DownloadJob.Status.DOWNLOADING,
+            DownloadJob.Status.PROCESSING,
+            DownloadJob.Status.CANCELLING,
+        ],
+        updated_at__lt=stale_before,
+    )
+    deleted = 0
+
+    for job in stale_jobs.iterator():
+        directory = _safe_job_directory(job.id)
+        shutil.rmtree(directory, ignore_errors=True)
+        job.delete()
+        deleted += 1
+
     expired_jobs = DownloadJob.objects.filter(
         expires_at__lte=timezone.now()
     ).exclude(
@@ -165,8 +182,6 @@ def cleanup_expired_downloads():
             DownloadJob.Status.CANCELLING,
         ]
     )
-    deleted = 0
-
     for job in expired_jobs.iterator():
         directory = _safe_job_directory(job.id)
         shutil.rmtree(directory, ignore_errors=True)

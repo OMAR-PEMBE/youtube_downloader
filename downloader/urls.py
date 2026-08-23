@@ -4,6 +4,9 @@ from . import views
 
 
 urlpatterns = [
+    path("health/live/", views.health_live, name="health-live"),
+    path("health/ready/", views.health_ready, name="health-ready"),
+    path("ads/<uuid:advertisement_id>/click/", views.advertisement_click, name="advertisement-click"),
     path(
         "",
         views.home,
