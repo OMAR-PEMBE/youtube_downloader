@@ -4,7 +4,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from django.test import SimpleTestCase, TestCase, override_settings
+from django.test import SimpleTestCase, TestCase, TransactionTestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
@@ -127,7 +127,9 @@ class HomeViewTests(TestCase):
                 response = self.client.get(reverse("download-file", args=[job.id]))
                 self.assertEqual(response.status_code, 200)
                 self.assertIn("attachment", response.headers["Content-Disposition"])
-                response.close()
+                for closer in response._resource_closers:
+                    closer()
+                response._resource_closers.clear()
 
 
 class YouTubeDownloaderTests(SimpleTestCase):
@@ -137,8 +139,49 @@ class YouTubeDownloaderTests(SimpleTestCase):
                 YouTubeDownloader("https://youtu.be/example", "video", "invalid")
         make_temp_directory.assert_not_called()
 
+    def test_rejects_video_over_duration_limit(self):
+        with tempfile.TemporaryDirectory() as root:
+            downloader = YouTubeDownloader(
+                "https://youtu.be/example",
+                "video",
+                "720",
+                output_directory=root,
+                max_duration=60,
+            )
 
-class BackgroundTaskTests(TestCase):
+            message = downloader._match_filter({"duration": 61})
+            self.assertIn("longer than", message)
+
+    def test_aborts_when_download_exceeds_size_limit(self):
+        with tempfile.TemporaryDirectory() as root:
+            downloader = YouTubeDownloader(
+                "https://youtu.be/example",
+                "video",
+                "720",
+                output_directory=root,
+                max_file_size=100,
+            )
+
+            with self.assertRaisesMessage(DownloadError, "exceeds"):
+                downloader._progress_hook({"downloaded_bytes": 101})
+
+    def test_rejects_oversized_finished_file(self):
+        with tempfile.TemporaryDirectory() as root:
+            filepath = Path(root) / "video.mp4"
+            filepath.write_bytes(b"x" * 101)
+            downloader = YouTubeDownloader(
+                "https://youtu.be/example",
+                "video",
+                "720",
+                output_directory=root,
+                max_file_size=100,
+            )
+
+            with self.assertRaisesMessage(DownloadError, "exceeds"):
+                downloader._validate_file_size(filepath)
+
+
+class BackgroundTaskTests(TransactionTestCase):
     def _job(self, **overrides):
         values = {
             "session_key": "test-session",

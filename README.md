@@ -6,6 +6,28 @@ for merging and conversion.
 
 Only download media you own or have permission to download.
 
+## Configure the environment
+
+Create your private environment file before starting the stack:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+Open `.env` and replace both placeholder values:
+
+- `DJANGO_SECRET_KEY` with a long random value.
+- `POSTGRES_PASSWORD` with a private database password.
+
+Generate a Django secret with:
+
+```powershell
+.\venv\Scripts\python.exe -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
+```
+
+The `.env` file is ignored by Git and Docker's build context so credentials are
+not committed or copied into an image.
+
 ## Recommended local setup
 
 Celery does not support native Windows workers. Install Docker Desktop, then run:
@@ -14,8 +36,8 @@ Celery does not support native Windows workers. Install Docker Desktop, then run
 docker compose up --build
 ```
 
-Open <http://localhost:8000>. The Compose stack starts Django, Redis, a Celery
-worker, and Celery Beat for expired-file cleanup.
+Open <http://localhost:8000>. The Compose stack starts Django, PostgreSQL,
+Redis, a Celery worker, and Celery Beat for expired-file cleanup.
 
 Stop the stack with:
 
@@ -27,6 +49,17 @@ Finished files are available for one hour by default. Override this with the
 `DOWNLOAD_JOB_TTL_SECONDS` environment variable. Anonymous browser sessions are
 limited to two active jobs by default; configure `DOWNLOAD_MAX_ACTIVE_JOBS` to
 change that limit.
+
+Downloads are limited to three hours and 2 GB by default. Configure
+`DOWNLOAD_MAX_DURATION_SECONDS` and `DOWNLOAD_MAX_FILE_SIZE_BYTES` in `.env` to
+change those limits. The size check is enforced during transfer and on the
+finished file because streaming formats do not always publish an accurate size
+before download.
+
+PostgreSQL data is stored in the `postgres-data` Docker volume. Normal
+`docker compose down` does not remove it. Running `docker compose down -v`
+deletes PostgreSQL and Redis data permanently and should only be used when you
+intend to reset the application.
 
 ## Tests
 

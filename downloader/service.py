@@ -21,7 +21,13 @@ def format_duration(seconds):
     return f"{minutes}:{seconds:02d}"
 
 
-def get_video_info(url):
+def format_file_size(size):
+    if size >= 1024**3:
+        return f"{size / 1024**3:.1f} GB"
+    return f"{size / 1024**2:.0f} MB"
+
+
+def get_video_info(url, max_duration=None):
     """
     Fetch basic YouTube video information without downloading it.
     """
@@ -38,6 +44,12 @@ def get_video_info(url):
             info = ydl.extract_info(
                 url,
                 download=False
+            )
+
+        duration = info.get("duration")
+        if max_duration and duration and duration > max_duration:
+            raise DownloadError(
+                f"This video is longer than the {format_duration(max_duration)} limit."
             )
 
         resolutions = set()
@@ -69,9 +81,8 @@ def get_video_info(url):
         return {
             "title": info.get("title"),
             "thumbnail": info.get("thumbnail"),
-            "duration": format_duration(
-                info.get("duration")
-            ),
+            "duration": format_duration(duration),
+            "duration_seconds": duration,
             "uploader": info.get("uploader"),
             "webpage_url": info.get("webpage_url"),
             "resolutions": available_resolutions,
@@ -129,6 +140,8 @@ class YouTubeDownloader:
         quality,
         output_directory=None,
         progress_callback=None,
+        max_duration=None,
+        max_file_size=None,
     ):
 
         allowed_qualities = (
@@ -150,6 +163,9 @@ class YouTubeDownloader:
         self.quality = quality
 
         self.progress_callback = progress_callback
+        self.max_duration = max_duration
+        self.max_file_size = max_file_size
+        self.limit_error = ""
         self.owns_directory = output_directory is None
         self.temp_directory = (
             tempfile.mkdtemp(prefix="youtube_download_")
@@ -177,6 +193,9 @@ class YouTubeDownloader:
 
             self.cleanup()
 
+            if self.limit_error:
+                raise DownloadError(self.limit_error)
+
             raise DownloadError(
                 "The video could not be downloaded."
             )
@@ -197,6 +216,8 @@ class YouTubeDownloader:
             "restrictfilenames": True,
             "retries": 3,
             "socket_timeout": 30,
+            "max_filesize": self.max_file_size,
+            "match_filter": self._match_filter,
 
             "progress_hooks": [self._progress_hook],
             "postprocessor_hooks": [self._postprocessor_hook],
@@ -229,6 +250,8 @@ class YouTubeDownloader:
 
         filepath = self._find_final_file()
 
+        self._validate_file_size(filepath)
+
         return filepath
 
     def _download_audio(self):
@@ -256,9 +279,38 @@ class YouTubeDownloader:
             ".mp3"
         )
 
+        self._validate_file_size(filepath)
+
         return filepath
 
+    def _match_filter(self, info, *, incomplete=False):
+
+        duration = info.get("duration")
+        if self.max_duration and duration and duration > self.max_duration:
+            self.limit_error = (
+                f"This video is longer than the "
+                f"{format_duration(self.max_duration)} limit."
+            )
+            return self.limit_error
+
+        return None
+
+    def _validate_file_size(self, filepath):
+
+        if self.max_file_size and filepath.stat().st_size > self.max_file_size:
+            raise DownloadError(
+                f"The finished file exceeds the "
+                f"{format_file_size(self.max_file_size)} limit."
+            )
+
     def _progress_hook(self, progress):
+
+        downloaded = int(progress.get("downloaded_bytes") or 0)
+        if self.max_file_size and downloaded > self.max_file_size:
+            raise DownloadError(
+                f"The download exceeds the "
+                f"{format_file_size(self.max_file_size)} limit."
+            )
 
         if self.progress_callback:
             self.progress_callback("download", progress)

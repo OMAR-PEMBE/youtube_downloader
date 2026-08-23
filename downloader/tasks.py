@@ -5,7 +5,6 @@ from pathlib import Path
 
 from celery import shared_task
 from django.conf import settings
-from django.db import close_old_connections
 from django.utils import timezone
 
 from .models import DownloadJob
@@ -22,7 +21,6 @@ def _safe_job_directory(job_id):
 
 @shared_task(bind=True, name="downloader.tasks.download_media")
 def download_media(self, job_id):
-    close_old_connections()
     job = DownloadJob.objects.get(pk=job_id)
     directory = _safe_job_directory(job.id)
     directory.mkdir(parents=True, exist_ok=True)
@@ -92,6 +90,8 @@ def download_media(self, job_id):
             job.quality,
             output_directory=directory,
             progress_callback=report_progress,
+            max_duration=settings.DOWNLOAD_MAX_DURATION_SECONDS,
+            max_file_size=settings.DOWNLOAD_MAX_FILE_SIZE_BYTES,
         )
         filepath = downloader.download_to_path()
         expires_at = timezone.now() + timedelta(seconds=settings.DOWNLOAD_JOB_TTL_SECONDS)
@@ -118,8 +118,6 @@ def download_media(self, job_id):
             updated_at=timezone.now(),
         )
         raise
-    finally:
-        close_old_connections()
 
 
 @shared_task(name="downloader.tasks.cleanup_expired_downloads")

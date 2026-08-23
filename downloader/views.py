@@ -35,7 +35,10 @@ def home(request):
     if request.method == "POST" and request.POST.get("action") == "preview":
         if form.is_valid():
             try:
-                video_info = get_video_info(form.cleaned_data["url"])
+                video_info = get_video_info(
+                    form.cleaned_data["url"],
+                    max_duration=settings.DOWNLOAD_MAX_DURATION_SECONDS,
+                )
             except DownloadError as error:
                 form.add_error(None, str(error))
 
