@@ -121,9 +121,12 @@ Deployment steps:
 3. Connect the GitHub repository and select its `render.yaml` Blueprint.
 4. When prompted for `DJANGO_ADMIN_PATH`, enter a private path ending in `/`,
    such as `control-your-random-words/`.
-5. Apply the Blueprint and wait for the health check to pass.
-6. Open the Render Shell for the web service and run
-   `python manage.py createsuperuser`.
+5. Enter the initial `DJANGO_SUPERUSER_USERNAME`, `DJANGO_SUPERUSER_EMAIL`, and
+   a strong `DJANGO_SUPERUSER_PASSWORD` when Render prompts for them.
+6. Apply the Blueprint and wait for the health check to pass. The administrator
+   is created automatically on the first startup and is not changed later.
+7. After confirming that login works, remove `DJANGO_SUPERUSER_PASSWORD` from
+   the web service environment. It is no longer needed after account creation.
 
 Render automatically supplies the external hostname, generated Django secret,
 PostgreSQL URL, and private Key Value URL. Do not copy local database credentials

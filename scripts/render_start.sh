@@ -5,6 +5,7 @@ export DOWNLOAD_ROOT="${DOWNLOAD_ROOT:-/tmp/download_jobs}"
 mkdir -p "$DOWNLOAD_ROOT"
 
 python manage.py migrate --noinput
+python manage.py ensure_admin
 
 celery -A youtube_downloader worker \
     --loglevel=info \

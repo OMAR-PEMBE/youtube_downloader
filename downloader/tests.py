@@ -1,9 +1,13 @@
+import os
 import tempfile
 from datetime import timedelta
+from io import StringIO
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from django.contrib.auth import get_user_model
+from django.core.management import call_command
 from django.test import SimpleTestCase, TestCase, TransactionTestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
@@ -253,6 +257,29 @@ class HomeViewTests(TestCase):
 
         self.assertEqual(first.status_code, 202)
         self.assertEqual(second.status_code, 429)
+
+
+class EnsureAdminCommandTests(TestCase):
+    @patch.dict(
+        os.environ,
+        {
+            "DJANGO_SUPERUSER_USERNAME": "render-admin",
+            "DJANGO_SUPERUSER_EMAIL": "admin@example.com",
+            "DJANGO_SUPERUSER_PASSWORD": "strong-test-password",
+        },
+    )
+    def test_creates_admin_once_without_resetting_existing_password(self):
+        output = StringIO()
+        call_command("ensure_admin", stdout=output)
+        administrator = get_user_model().objects.get(username="render-admin")
+        self.assertTrue(administrator.is_superuser)
+        self.assertTrue(administrator.check_password("strong-test-password"))
+
+        with patch.dict(os.environ, {"DJANGO_SUPERUSER_PASSWORD": "different-password"}):
+            call_command("ensure_admin", stdout=output)
+
+        administrator.refresh_from_db()
+        self.assertTrue(administrator.check_password("strong-test-password"))
 
 
 class YouTubeDownloaderTests(SimpleTestCase):
