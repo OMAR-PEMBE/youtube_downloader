@@ -443,6 +443,15 @@
                             style="display: none;"
                         ></div>
 
+                        <button
+                            type="button"
+                            id="cancelDownloadButton"
+                            class="btn btn-outline-danger w-100 mt-3"
+                            style="display: none;"
+                        >
+                            Cancel Download
+                        </button>
+
                         <a
                             id="readyDownloadButton"
                             class="btn btn-success btn-main w-100 mt-3"
@@ -534,8 +543,10 @@
     const jobProgressBar = document.getElementById("jobProgressBar");
     const jobDetails = document.getElementById("jobDetails");
     const jobError = document.getElementById("jobError");
+    const cancelDownloadButton = document.getElementById("cancelDownloadButton");
     const readyDownloadButton = document.getElementById("readyDownloadButton");
     const startDownloadUrl = "{% url 'download-start' %}";
+    let currentCancelUrl = null;
 
 
     function updateOptions() {
@@ -604,6 +615,8 @@
         jobError.textContent = message;
         jobError.style.display = "block";
         jobProgressBar.classList.remove("progress-bar-animated");
+        cancelDownloadButton.style.display = "none";
+        currentCancelUrl = null;
         downloadButton.disabled = false;
     }
 
@@ -639,10 +652,30 @@
             }
             jobDetails.textContent = details.join(" ");
 
+            if (job.cancel_url) {
+                currentCancelUrl = job.cancel_url;
+                cancelDownloadButton.style.display = "block";
+                cancelDownloadButton.disabled = job.status === "cancelling";
+                cancelDownloadButton.textContent = job.status === "cancelling"
+                    ? "Cancelling..."
+                    : "Cancel Download";
+            } else {
+                currentCancelUrl = null;
+                cancelDownloadButton.style.display = "none";
+            }
+
             if (job.status === "ready" && job.download_url) {
                 jobProgressBar.classList.remove("progress-bar-animated");
                 readyDownloadButton.href = job.download_url;
                 readyDownloadButton.style.display = "block";
+                downloadButton.disabled = false;
+                return;
+            }
+
+            if (job.status === "cancelled") {
+                jobStage.textContent = "Download cancelled";
+                jobDetails.textContent = "The temporary download data was removed.";
+                jobProgressBar.classList.remove("progress-bar-animated");
                 downloadButton.disabled = false;
                 return;
             }
@@ -663,6 +696,10 @@
         jobProgress.style.display = "block";
         jobError.style.display = "none";
         readyDownloadButton.style.display = "none";
+        cancelDownloadButton.style.display = "none";
+        cancelDownloadButton.disabled = false;
+        cancelDownloadButton.textContent = "Cancel Download";
+        currentCancelUrl = null;
         jobStage.textContent = "Creating download job";
         jobPercent.textContent = "0%";
         jobProgressBar.style.width = "0%";
@@ -681,6 +718,8 @@
                 throw new Error(result.error || "Could not start the download.");
             }
 
+            currentCancelUrl = result.cancel_url;
+            cancelDownloadButton.style.display = "block";
             pollProgress(result.progress_url);
         } catch (error) {
             showFailure(error.message);
@@ -691,6 +730,38 @@
     if (downloadButton) {
         downloadButton.addEventListener("click", startDownload);
     }
+
+
+    cancelDownloadButton.addEventListener("click", async function() {
+        if (!currentCancelUrl) {
+            return;
+        }
+
+        cancelDownloadButton.disabled = true;
+        cancelDownloadButton.textContent = "Cancelling...";
+        jobStage.textContent = "Stopping download safely";
+
+        try {
+            const response = await fetch(currentCancelUrl, {
+                method: "POST",
+                body: new FormData(form),
+                headers: {"Accept": "application/json"}
+            });
+            const result = await response.json();
+            if (!response.ok && response.status !== 409) {
+                throw new Error(result.error || "Could not cancel the download.");
+            }
+        } catch (error) {
+            showFailure(error.message);
+        }
+    });
+
+
+    readyDownloadButton.addEventListener("click", function() {
+        readyDownloadButton.style.display = "none";
+        jobStage.textContent = "File delivery started";
+        jobDetails.textContent = "This one-time file is removed after delivery.";
+    });
 
 </script>
 

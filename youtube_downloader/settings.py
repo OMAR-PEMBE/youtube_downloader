@@ -150,6 +150,8 @@ DOWNLOAD_JOB_TTL_SECONDS = int(os.environ.get("DOWNLOAD_JOB_TTL_SECONDS", "3600"
 DOWNLOAD_MAX_ACTIVE_JOBS = int(os.environ.get("DOWNLOAD_MAX_ACTIVE_JOBS", "2"))
 DOWNLOAD_MAX_DURATION_SECONDS = int(os.environ.get("DOWNLOAD_MAX_DURATION_SECONDS", "10800"))
 DOWNLOAD_MAX_FILE_SIZE_BYTES = int(os.environ.get("DOWNLOAD_MAX_FILE_SIZE_BYTES", str(2 * 1024**3)))
+DOWNLOAD_RATE_LIMIT_COUNT = int(os.environ.get("DOWNLOAD_RATE_LIMIT_COUNT", "10"))
+DOWNLOAD_RATE_LIMIT_WINDOW_SECONDS = int(os.environ.get("DOWNLOAD_RATE_LIMIT_WINDOW_SECONDS", "3600"))
 
 CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", "redis://127.0.0.1:6379/0")
 CELERY_RESULT_BACKEND = os.environ.get("CELERY_RESULT_BACKEND", "redis://127.0.0.1:6379/1")
@@ -157,6 +159,20 @@ CELERY_TASK_TRACK_STARTED = True
 CELERY_TASK_TIME_LIMIT = 60 * 60
 CELERY_TASK_SOFT_TIME_LIMIT = 55 * 60
 CELERY_RESULT_EXPIRES = DOWNLOAD_JOB_TTL_SECONDS
+CACHE_URL = os.environ.get("CACHE_URL")
+CACHES = {
+    "default": (
+        {
+            "BACKEND": "django.core.cache.backends.redis.RedisCache",
+            "LOCATION": CACHE_URL,
+        }
+        if CACHE_URL
+        else {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "youtube-downloader-local",
+        }
+    )
+}
 CELERY_BEAT_SCHEDULE = {
     "cleanup-expired-downloads": {
         "task": "downloader.tasks.cleanup_expired_downloads",

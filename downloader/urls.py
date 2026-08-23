@@ -24,4 +24,9 @@ urlpatterns = [
         views.download_file,
         name="download-file",
     ),
+    path(
+        "downloads/<uuid:job_id>/cancel/",
+        views.cancel_download,
+        name="download-cancel",
+    ),
 ]

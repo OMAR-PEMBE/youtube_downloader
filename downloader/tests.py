@@ -62,6 +62,7 @@ class HomeViewTests(TestCase):
         job = DownloadJob.objects.get()
         self.assertEqual(job.task_id, "task-123")
         self.assertEqual(job.status, DownloadJob.Status.QUEUED)
+        self.assertIn("cancel_url", response.json())
 
     def test_progress_is_private_to_the_creating_session(self):
         session = self.client.session
@@ -130,6 +131,55 @@ class HomeViewTests(TestCase):
                 for closer in response._resource_closers:
                     closer()
                 response._resource_closers.clear()
+
+            self.assertFalse(DownloadJob.objects.filter(pk=job.id).exists())
+            self.assertFalse(directory.exists())
+
+    @patch("downloader.views.current_app.control.revoke")
+    def test_queued_download_can_be_cancelled(self, revoke):
+        session = self.client.session
+        session.save()
+        job = DownloadJob.objects.create(
+            session_key=session.session_key,
+            url="https://youtu.be/example",
+            download_type="video",
+            quality="720",
+            task_id="task-123",
+            expires_at=timezone.now() + timedelta(hours=1),
+        )
+
+        response = self.client.post(reverse("download-cancel", args=[job.id]))
+
+        self.assertEqual(response.status_code, 202)
+        job.refresh_from_db()
+        self.assertEqual(job.status, DownloadJob.Status.CANCELLED)
+        self.assertEqual(job.url, "")
+        revoke.assert_called_once_with("task-123", terminate=False)
+
+    @override_settings(
+        DOWNLOAD_RATE_LIMIT_COUNT=1,
+        DOWNLOAD_MAX_ACTIVE_JOBS=10,
+        CACHES={
+            "default": {
+                "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+                "LOCATION": "rate-limit-test",
+            }
+        },
+    )
+    @patch("downloader.views.download_media.delay")
+    def test_download_rate_limit_is_applied_to_anonymous_session(self, delay):
+        delay.return_value = SimpleNamespace(id="task-123")
+        payload = {
+            "url": "https://youtu.be/example",
+            "download_type": "video",
+            "video_quality": "720",
+        }
+
+        first = self.client.post(reverse("download-start"), payload)
+        second = self.client.post(reverse("download-start"), payload)
+
+        self.assertEqual(first.status_code, 202)
+        self.assertEqual(second.status_code, 429)
 
 
 class YouTubeDownloaderTests(SimpleTestCase):
@@ -209,7 +259,22 @@ class BackgroundTaskTests(TransactionTestCase):
             job.refresh_from_db()
             self.assertEqual(job.status, DownloadJob.Status.READY)
             self.assertEqual(job.progress, 100)
+            self.assertEqual(job.url, "")
             self.assertEqual(result["filename"], "video.mp4")
+
+    @patch("downloader.tasks.YouTubeDownloader")
+    def test_task_finishes_cancellation_without_starting_download(self, downloader_class):
+        with tempfile.TemporaryDirectory() as root:
+            job = self._job(status=DownloadJob.Status.CANCELLING)
+
+            with override_settings(DOWNLOAD_ROOT=root):
+                result = download_media.run(str(job.id))
+
+            job.refresh_from_db()
+            self.assertTrue(result["cancelled"])
+            self.assertEqual(job.status, DownloadJob.Status.CANCELLED)
+            self.assertEqual(job.url, "")
+            downloader_class.assert_not_called()
 
     def test_cleanup_removes_expired_job_and_file(self):
         with tempfile.TemporaryDirectory() as root:

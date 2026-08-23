@@ -97,6 +97,10 @@ class DownloadError(Exception):
     pass
 
 
+class DownloadCancelled(DownloadError):
+    pass
+
+
 class DeleteOnClose:
 
     def __init__(self, file_object, directory):

@@ -50,6 +50,17 @@ Finished files are available for one hour by default. Override this with the
 limited to two active jobs by default; configure `DOWNLOAD_MAX_ACTIVE_JOBS` to
 change that limit.
 
+The application intentionally has no user accounts or download history. A URL
+is cleared from the database as soon as the worker claims its job. The finished
+file and its job record are deleted after the first browser delivery; the
+one-hour cleanup remains a fallback for abandoned downloads. Users can also
+cancel queued or running jobs from the progress panel.
+
+Anonymous sessions may start 10 downloads per hour by default. Configure
+`DOWNLOAD_RATE_LIMIT_COUNT` and `DOWNLOAD_RATE_LIMIT_WINDOW_SECONDS` to tune
+this temporary Redis-backed limit. It is abuse protection, not permanent user
+tracking, and disappears when the Redis key expires.
+
 Downloads are limited to three hours and 2 GB by default. Configure
 `DOWNLOAD_MAX_DURATION_SECONDS` and `DOWNLOAD_MAX_FILE_SIZE_BYTES` in `.env` to
 change those limits. The size check is enforced during transfer and on the

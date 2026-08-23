@@ -8,7 +8,7 @@ from django.conf import settings
 from django.utils import timezone
 
 from .models import DownloadJob
-from .service import DownloadError, YouTubeDownloader
+from .service import DownloadCancelled, DownloadError, YouTubeDownloader
 
 
 def _safe_job_directory(job_id):
@@ -26,10 +26,31 @@ def download_media(self, job_id):
     directory.mkdir(parents=True, exist_ok=True)
     last_update = 0.0
 
+    if job.status in {DownloadJob.Status.CANCELLING, DownloadJob.Status.CANCELLED}:
+        DownloadJob.objects.filter(pk=job.id).update(
+            status=DownloadJob.Status.CANCELLED,
+            stage="Download cancelled",
+            url="",
+            error="",
+            updated_at=timezone.now(),
+        )
+        shutil.rmtree(directory, ignore_errors=True)
+        return {"job_id": str(job.id), "cancelled": True}
+
+    url = job.url
+    DownloadJob.objects.filter(pk=job.id).update(url="")
+    job.url = ""
+
     def report_progress(phase, data):
         nonlocal last_update
         now = time.monotonic()
         status = data.get("status")
+
+        current_status = DownloadJob.objects.filter(pk=job.id).values_list(
+            "status", flat=True
+        ).first()
+        if current_status in {DownloadJob.Status.CANCELLING, DownloadJob.Status.CANCELLED}:
+            raise DownloadCancelled("Download cancelled by the user.")
 
         if phase == "processing":
             job_status = DownloadJob.Status.PROCESSING
@@ -85,7 +106,7 @@ def download_media(self, job_id):
 
     try:
         downloader = YouTubeDownloader(
-            job.url,
+            url,
             job.download_type,
             job.quality,
             output_directory=directory,
@@ -107,12 +128,25 @@ def download_media(self, job_id):
             updated_at=timezone.now(),
         )
         return {"job_id": str(job.id), "filename": filepath.name}
+    except DownloadCancelled:
+        shutil.rmtree(directory, ignore_errors=True)
+        DownloadJob.objects.filter(pk=job.id).update(
+            status=DownloadJob.Status.CANCELLED,
+            stage="Download cancelled",
+            progress=0,
+            url="",
+            error="",
+            eta=None,
+            updated_at=timezone.now(),
+        )
+        return {"job_id": str(job.id), "cancelled": True}
     except Exception as error:
         shutil.rmtree(directory, ignore_errors=True)
         message = str(error) if isinstance(error, DownloadError) else "The download could not be completed."
         DownloadJob.objects.filter(pk=job.id).update(
             status=DownloadJob.Status.FAILED,
             stage="Download failed",
+            url="",
             error=message[:1000],
             eta=None,
             updated_at=timezone.now(),
@@ -128,6 +162,7 @@ def cleanup_expired_downloads():
         status__in=[
             DownloadJob.Status.DOWNLOADING,
             DownloadJob.Status.PROCESSING,
+            DownloadJob.Status.CANCELLING,
         ]
     )
     deleted = 0
